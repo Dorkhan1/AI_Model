@@ -9,7 +9,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="🍲 AI-интервью", page_icon="🍲")
 
-load_dotenv()
+#load_dotenv()
 SECRET_TOKEN = os.getenv("SECRET_TOKEN")
 
 st.markdown("## 🔐 Введите токен для доступа")
@@ -20,7 +20,7 @@ if user_token != SECRET_TOKEN:
     st.stop()
 
 
-load_dotenv()
+#load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
