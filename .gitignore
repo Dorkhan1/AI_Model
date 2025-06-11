@@ -1,0 +1,24 @@
+.env# 🔐 Секретные файлы
+*.env
+
+# 🐍 Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# 📦 Виртуальные окружения
+venv/
+env/
+.venv/
+
+# 💻 Mac OS
+.DS_Store
+
+# 🚫 Streamlit кэш и локальные настройки
+.streamlit/config.toml
+.streamlit/secrets.toml
+
+# ⚙️ VS Code config
+.vscode/
