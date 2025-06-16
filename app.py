@@ -54,7 +54,7 @@ def generate_questions():
         ]
     )
     text = response.choices[0].message.content
-    return [q.strip("•-1234567890. ").strip() for q in text.split("\n q.strip()][:3]
+    return [q.strip("•-1234567890. ").strip() for q in text.split("\n") if q.strip()][:3]
 
 # Диалоговая память
 if "messages" not in st.session_state:
