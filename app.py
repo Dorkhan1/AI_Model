@@ -5,7 +5,9 @@ from datetime import datetime
 from gtts import gTTS
 from io import BytesIO
 
+# Безопасность и авторизация
 secret_token = os.getenv("SECRET_TOKEN")
+
 if secret_token is None:
     from dotenv import load_dotenv
     load_dotenv()
@@ -15,7 +17,7 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.set_page_config(page_title="🍲 AI-интервью", page_icon="🍲")
+    st.set_page_config(page_title="AI-интервью", page_icon=None)
     st.markdown("## 🔐 Введите токен для доступа")
 
     with st.form("auth_form"):
@@ -30,91 +32,92 @@ if not st.session_state.authenticated:
             st.error("❌ Неверный токен. Доступ запрещён.")
     st.stop()
 
+#Настройки OpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
-labels = {
-    "title": "🍲 AI-интервью: Семейные рецепты и традиции",
-    "start_msg": "🧠 Ответьте на 3 вопроса, и я составлю вашу историю",
-    "generate_btn": "✍️ Составить историю",
-    "download_btn": "📄 Скачать историю",
-    "audio_btn": "🎵 Скачать аудио",
-    "result_title": "📖 Семейная история:",
-    "spinner": "Генерация истории..."
-}
+#Интерфейс
+st.title("AI-интервью: Семейные рецепты и воспоминания")
+st.info("🧠 Ответьте на три вопроса — и получите уникальную историю!")
 
+#Генерация вопросов
 def generate_questions():
     prompt = (
-        "Придумай 3 тёплых и личных вопроса для интервью о семейных рецептах, традициях и воспоминаниях. "
-        "Один вопрос — одна строка. Без лишнего текста."
+        "Придумай 3 личных вопроса для интервью о семейных рецептах, традициях и воспоминаниях."
+        " Один вопрос — одна строка. Без пояснений."
     )
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "Ты интервьюер, собирающий семейные воспоминания и рецепты."},
+            {"role": "system", "content": "Ты интервьюер."},
             {"role": "user", "content": prompt}
         ]
     )
-    raw_text = response.choices[0].message.content
-    questions = [q.strip("•-1234567890. ").strip() for q in raw_text.split("\n") if q.strip()]
-    return questions[:3]
+    text = response.choices[0].message.content
+    return [q.strip("•-1234567890. ").strip() for q in text.split("\n q.strip()][:3]
 
-def generate_audio(text, lang="ru"):
-    tts = gTTS(text=text, lang=lang)
-    audio_data = BytesIO()
-    tts.write_to_fp(audio_data)
-    audio_data.seek(0)
-    return audio_data
-
-# Состояния
-if "step" not in st.session_state:
-    st.session_state.step = 0
+# Диалоговая память
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 if "questions" not in st.session_state:
     st.session_state.questions = generate_questions()
-if "answers" not in st.session_state:
-    st.session_state.answers = []
-if "story" not in st.session_state:
-    st.session_state.story = None
+if "question_index" not in st.session_state:
+    st.session_state.question_index = 0
 
-# Интерфейс
-st.title(labels["title"])
-st.info(labels["start_msg"])
+# Чат 
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
 
-if st.session_state.step < len(st.session_state.questions):
-    question = st.session_state.questions[st.session_state.step]
-    answer = st.text_input(f"🤖 Вопрос {st.session_state.step + 1}: {question}", key=f"answer_{st.session_state.step}")
-    if st.button("Ответить"):
-        if answer.strip():
-            st.session_state.answers.append(answer)
-            st.session_state.step += 1
-            st.experimental_rerun()
-        else:
-            st.warning("Пожалуйста, введите ответ.")
+if st.session_state.question_index < len(st.session_state.questions):
+    question = st.session_state.questions[st.session_state.question_index]
+    with st.chat_message("ai"):
+        st.markdown(question)
 
-elif st.session_state.story is None:
-    interview_text = "\n".join([f"Q: {q}\nA: {a}" for q, a in zip(st.session_state.questions, st.session_state.answers)])
-    story_prompt = (
-        "На основе следующего интервью напиши тёплую семейную историю (3–5 абзацев), "
-        "сохранив реальные названия блюд и не добавляя вымышленных фамилий.\n\n" + interview_text
-    )
-    with st.spinner(labels["spinner"]):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты писатель, создающий вдохновляющие семейные истории."},
-                {"role": "user", "content": story_prompt}
-            ]
+    user_input = st.chat_input("Ваш ответ...")
+    if user_input:
+        st.session_state.messages.append({"role": "ai", "content": question})
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        st.session_state.question_index += 1
+        st.rerun()
+
+#  Генерация истории 
+if st.session_state.question_index == len(st.session_state.questions):
+    if st.button("✍️ Сгенерировать семейную историю"):
+        full_dialogue = "\n".join(
+            [f"Q: {m['content']}" if m['role'] == "ai" else f"A: {m['content']}"
+             for m in st.session_state.messages]
         )
-        st.session_state.story = response.choices[0].message.content
-        st.success("✅ Готово!")
-        st.experimental_rerun()
-else:
-    st.markdown(f"### {labels['result_title']}")
+        story_prompt = (
+            "На основе диалога напиши тёплую семейную историю (3–5 абзацев),"
+            " сохранив названия блюд и личные детали."
+        )
+        with st.spinner("История создаётся..."):
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Ты писатель, создающий трогательные истории."},
+                    {"role": "user", "content": story_prompt + "\n\n" + full_dialogue}
+                ]
+            )
+            story = response.choices[0].message.content
+            st.session_state.story = story
+            st.success("✅ Готово!")
+
+#  Отображение истории
+if "story" in st.session_state:
+    st.markdown("### 📖 Семейная история")
     st.write(st.session_state.story)
+
+    def generate_audio(text):
+        tts = gTTS(text=text, lang="ru")
+        audio_data = BytesIO()
+        tts.write_to_fp(audio_data)
+        audio_data.seek(0)
+        return audio_data
 
     audio_file = generate_audio(st.session_state.story)
     st.audio(audio_file, format="audio/mp3")
-    st.download_button(labels["audio_btn"], data=audio_file, file_name="family_story.mp3", mime="audio/mp3")
+    st.download_button("🎵 Скачать аудио", data=audio_file, file_name="family_story.mp3", mime="audio/mp3")
 
     filename = f"family_story_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    st.download_button(labels["download_btn"], data=st.session_state.story, file_name=filename, mime="text/plain")
+    st.download_button("📄 Скачать текст", data=st.session_state.story, file_name=filename, mime="text/plain")
