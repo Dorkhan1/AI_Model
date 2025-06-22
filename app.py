@@ -83,7 +83,6 @@ if st.session_state.question_index < len(st.session_state.questions):
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=BytesIO(audio_bytes),
-                    filename=audio_file.name,
                     response_format="text"
                 )
                 recognized_text = transcript.strip()
