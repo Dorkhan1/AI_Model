@@ -6,10 +6,12 @@ from gtts import gTTS
 from io import BytesIO
 from dotenv import load_dotenv
 
+# Загрузка переменных окружения
 load_dotenv()
 
 st.set_page_config(page_title="AI-интервью", page_icon="🍲")
 
+# Авторизация
 secret_token = os.getenv("SECRET_TOKEN")
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -34,6 +36,7 @@ client = OpenAI(api_key=api_key)
 st.title("AI-интервью: Семейные рецепты и воспоминания")
 st.info("🧠 Ответьте на три вопроса — и получите уникальную историю!")
 
+# Генерация вопросов
 def generate_questions():
     prompt = (
         "Придумай 3 личных вопроса для интервью о семейных рецептах, традициях и воспоминаниях. "
@@ -49,7 +52,7 @@ def generate_questions():
     text = response.choices[0].message.content
     return [q.strip("•-1234567890. ").strip() for q in text.split("\n") if q.strip()][:3]
 
-# Диалоговая память
+# Диалоговая память(memory)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "questions" not in st.session_state:
@@ -57,32 +60,38 @@ if "questions" not in st.session_state:
 if "question_index" not in st.session_state:
     st.session_state.question_index = 0
 
-# Отображение истории сообщений
+# Отображение истории
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
-# Вопросы и ответы
+# Вопросы
 if st.session_state.question_index < len(st.session_state.questions):
-    question = st.session_state.questions[st.session_state.question_index]
+    index = st.session_state.question_index
+    question = st.session_state.questions[index]
+
     with st.chat_message("ai"):
         st.markdown(question)
 
-    user_input = st.chat_input("Ваш ответ...")
-
+    user_input = st.text_input("Ваш ответ...", key=f"text_input_{index}")
+# Спич ту текст
     st.markdown("#### Или загрузите аудиофайл (.mp3, .wav, .m4a):")
-    audio_file = st.file_uploader("🎤 Голосовой ответ", type=["mp3", "wav", "m4a"])
+    audio_file = st.file_uploader(
+        "🎤 Голосовой ответ",
+        type=["mp3", "wav", "m4a"],
+        key=f"audio_input_{index}"
+    )
 
     recognized_text = None
 
     if user_input:
         recognized_text = user_input
+
     elif audio_file:
         with st.spinner("🎧 Распознаётся голос..."):
             try:
-                audio_bytes = audio_file.read()
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
-                    file=BytesIO(audio_bytes),
+                    file=audio_file,
                     response_format="text"
                 )
                 recognized_text = transcript.strip()
@@ -96,6 +105,7 @@ if st.session_state.question_index < len(st.session_state.questions):
         st.session_state.question_index += 1
         st.rerun()
 
+# Генерация истории
 if st.session_state.question_index == len(st.session_state.questions):
     if st.button("✍️ Сгенерировать семейную историю"):
         full_dialogue = "\n".join(
@@ -121,6 +131,7 @@ if st.session_state.question_index == len(st.session_state.questions):
             except Exception as e:
                 st.error(f"❌ Ошибка при генерации истории: {e}")
 
+# Отображение истории
 if "story" in st.session_state:
     st.markdown("### 📖 Семейная история")
     st.write(st.session_state.story)
