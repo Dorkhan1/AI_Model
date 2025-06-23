@@ -1,4 +1,5 @@
 import os
+import replicate
 import streamlit as st
 from openai import OpenAI
 from datetime import datetime
@@ -52,7 +53,7 @@ def generate_questions():
     text = response.choices[0].message.content
     return [q.strip("•-1234567890. ").strip() for q in text.split("\n") if q.strip()][:3]
 
-# Диалоговая память(memory)
+# Диалоговая память
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "questions" not in st.session_state:
@@ -73,21 +74,14 @@ if st.session_state.question_index < len(st.session_state.questions):
         st.markdown(question)
 
     user_input = st.text_input("Ваш ответ...", key=f"text_input_{index}")
-# Спич ту текст
     st.markdown("#### Или загрузите аудиофайл (.mp3, .wav, .m4a):")
-    audio_file = st.file_uploader(
-        "🎤 Голосовой ответ",
-        type=["mp3", "wav", "m4a"],
-        key=f"audio_input_{index}"
-    )
+    audio_file = st.file_uploader("🎤 Голосовой ответ", type=["mp3", "wav", "m4a"], key=f"audio_input_{index}")
 
     recognized_text = None
-
     if user_input:
         recognized_text = user_input
-
     elif audio_file:
-        with st.spinner("🎧 Распознаётся голос..."):
+        with st.spinner("🎿 Распознаётся голос..."):
             try:
                 transcript = client.audio.transcriptions.create(
                     model="whisper-1",
@@ -109,12 +103,10 @@ if st.session_state.question_index < len(st.session_state.questions):
 if st.session_state.question_index == len(st.session_state.questions):
     if st.button("✍️ Сгенерировать семейную историю"):
         full_dialogue = "\n".join(
-            [f"Q: {m['content']}" if m['role'] == "ai" else f"A: {m['content']}"
-             for m in st.session_state.messages]
+            [f"Q: {m['content']}" if m['role'] == "ai" else f"A: {m['content']}" for m in st.session_state.messages]
         )
         story_prompt = (
-            "На основе диалога напиши тёплую семейную историю (3–5 абзацев), "
-            "сохранив названия блюд и личные детали."
+            "На основе диалога напиши тёплую семейную историю (3–5 абзацев), сохранив названия блюд и личные детали."
         )
         with st.spinner("История создаётся..."):
             try:
@@ -149,3 +141,33 @@ if "story" in st.session_state:
 
     filename = f"family_story_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     st.download_button("📄 Скачать текст", data=st.session_state.story, file_name=filename, mime="text/plain")
+
+    replicate_token = os.getenv("REPLICATE_API_TOKEN")
+    if replicate_token:
+        replicate.Client(api_token=replicate_token)
+        with st.spinner("🧠 Генерируется изображение по истории..."):
+            try:
+                image_prompt = (
+                    "Kazakh family inside a traditional yurt celebrating Nauryz, "
+                    "with traditional Kazakh food like nauryz kozhe, baursak, qazy, "
+                    "wearing national clothes, daylight, cultural atmosphere, "
+                    "authentic central Asian style, soft lighting, realistic photo"
+                )
+
+                output = replicate.run(
+                    "black-forest-labs/flux-schnell",
+                    input={"prompt": image_prompt}
+                )
+                if hasattr(output, "read"):
+                    image_bytes = output.read()
+                    st.image(image_bytes, caption="🎨 Сгенерированное изображение по истории")
+                elif isinstance(output, list) and hasattr(output[0], "read"):
+                    image_bytes = output[0].read()
+                    st.image(image_bytes, caption="🎨 Сгенерированное изображение по истории")
+                elif isinstance(output, list) and isinstance(output[0], str):
+                    st.image(output[0], caption="🎨 Сгенерированное изображение по истории")
+                else:
+                    st.warning("⚠️ Неизвестный формат вывода от модели")
+
+            except Exception as e:
+                st.error(f"❌ Ошибка при генерации картинки: {e}")
